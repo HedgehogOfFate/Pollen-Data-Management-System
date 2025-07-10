@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Statistics for {{ friendly_name }}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    .card {
+      margin-bottom: 2rem;
+      box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    }
+
+    .filter-form {
+      margin-bottom: 1.5rem;
+    }
+
+    .table-responsive {
+      margin-bottom: 1.5rem;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 1rem;
+    }
+
+    .table th,
+    .table td {
+      padding: 0.75rem;
+      vertical-align: middle;
+      border: 1px solid #dee2e6;
+    }
+
+    .table thead th {
+      background-color: #f8f9fa;
+      border-bottom: 2px solid #dee2e6;
+      vertical-align: bottom;
+    }
+
+    .table tbody tr:nth-of-type(odd) {
+      background-color: rgba(0, 0, 0, 0.05);
+    }
+
+    .table-primary,
+    .table-primary > td,
+    .table-primary > th,
+    .table tr.table-primary,
+    .table tr.table-primary td,
+    .table tr.table-primary th,
+    tr.table-primary,
+    tr.table-primary td,
+    tr.table-primary th {
+      background-color: rgba(0, 0, 0, 0.05) !important;
+      color: inherit !important;
+      border-color: #dee2e6 !important;
+    }
+
+
+    .table tbody tr {
+      background-color: transparent;
+    }
+
+    .table tbody tr:nth-of-type(odd),
+    .table tbody tr:nth-of-type(odd) td {
+      background-color: rgba(0, 0, 0, 0.05) !important;
+    }
+
+    .table tbody tr:nth-of-type(even),
+    .table tbody tr:nth-of-type(even) td {
+      background-color: transparent !important;
+    }
+
+    .table tbody tr[class*="table-"],
+    .table tbody tr[class*="table-"] td,
+    .table tbody tr[class*="table-"] th {
+      background-color: rgba(0, 0, 0, 0.05) !important;
+      color: inherit !important;
+    }
+
+    .font-weight-bold {
+      font-weight: bold !important;
+    }
+
+    .date-mode-toggle {
+      margin-bottom: 1rem;
+    }
+
+    .date-range-fields,
+    .single-date-field {
+      transition: all 0.3s ease-in-out;
+    }
+
+    .stats-tabs {
+      margin-bottom: 1rem;
+    }
+
+    .stats-tabs .nav-link {
+      border-radius: 0;
+      padding: 0.75rem 1.25rem;
+    }
+
+    .stats-tabs .nav-link.active {
+      font-weight: bold;
+      border-bottom: 3px solid #0d6efd;
+    }
+
+    .tab-content {
+      padding-top: 1rem;
+    }
+
+    @media (max-width: 768px) {
+      .table {
+        font-size: 0.875rem;
+      }
+
+      .table th,
+      .table td {
+        padding: 0.5rem;
+      }
+    }
+  </style>
+</head>
+<body class="p-4">
+  <div class="container">
+    <h1 class="mb-4">Statistics: {{ friendly_name }}</h1>
+
+    <div class="d-flex mb-3">
+      <a href="/" class="btn btn-secondary me-2">← Back to Tables</a>
+      <a href="/view/{{ table_name }}" class="btn btn-primary">View Full Data</a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-3">
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <div class="card">
+      <div class="card-header">
+        <h5 class="mb-0">Filters</h5>
+      </div>
+      <div class="card-body">
+        <form action="/stats/{{ table_name }}" method="get" class="filter-form row g-3">
+
+          {% if stations %}
+          <div class="col-md-12 mb-3">
+            <label for="station" class="form-label">Station:</label>
+            <select name="station" id="station" class="form-select">
+              <option value="">All Stations</option>
+              {% for station in stations %}
+                <option value="{{ station }}" {% if selected_station == station %}selected{% endif %}>{{ station }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endif %}
+
+          <div class="col-md-12 mb-3 date-mode-toggle">
+            <div class="btn-group" role="group">
+              <input type="radio" class="btn-check" name="date_range_mode" id="single_date" value="single"
+                     {% if date_range_mode != 'range' %}checked{% endif %} autocomplete="off">
+              <label class="btn btn-outline-primary" for="single_date">Single Date</label>
+
+              <input type="radio" class="btn-check" name="date_range_mode" id="date_range" value="range"
+                     {% if date_range_mode == 'range' %}checked{% endif %} autocomplete="off">
+              <label class="btn btn-outline-primary" for="date_range">Date Range</label>
+            </div>
+          </div>
+
+          <div class="col-md-4 single-date-field" id="single_date_field"
+               {% if date_range_mode == 'range' %}style="display: none;"{% endif %}>
+            <label for="date" class="form-label">Date (YYYY-MM-DD):</label>
+            <input type="date" id="date" name="date" class="form-control"
+                   value="{{ selected_date }}"
+                   pattern="\d{4}-\d{2}-\d{2}"
+                   title="Please use format YYYY-MM-DD">
+          </div>
+
+          <div class="col-md-8 date-range-fields row" id="date_range_fields"
+               {% if date_range_mode != 'range' %}style="display: none;"{% endif %}>
+            <div class="col-md-6">
+              <label for="start_date" class="form-label">Start Date:</label>
+              <input type="date" id="start_date" name="start_date" class="form-control"
+                     value="{{ start_date }}"
+                     pattern="\d{4}-\d{2}-\d{2}"
+                     title="Please use format YYYY-MM-DD">
+            </div>
+            <div class="col-md-6">
+              <label for="end_date" class="form-label">End Date:</label>
+              <input type="date" id="end_date" name="end_date" class="form-control"
+                     value="{{ end_date }}"
+                     pattern="\d{4}-\d{2}-\d{2}"
+                     title="Please use format YYYY-MM-DD">
+            </div>
+          </div>
+
+          <div class="col-md-12 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary me-2">Show Statistics</button>
+            <a href="/stats/{{ table_name }}" class="btn btn-outline-secondary">Reset</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    {% if display_stats %}
+    <div class="card">
+      <div class="card-header">
+        <h5 class="mb-0">
+          Statistics for
+          {% if date_range_display %}
+            {{ date_range_display }}
+          {% endif %}
+          {% if selected_station %}
+            (Station: {{ selected_station }})
+          {% endif %}
+        </h5>
+      </div>
+      <div class="card-body">
+        {% if has_total_stats %}
+        <ul class="nav nav-tabs stats-tabs" id="statsTab" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="regular-tab" data-bs-toggle="tab" data-bs-target="#regular-stats"
+                    type="button" role="tab" aria-controls="regular-stats" aria-selected="true">
+              Regular Statistics
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="total-tab" data-bs-toggle="tab" data-bs-target="#total-stats"
+                    type="button" role="tab" aria-controls="total-stats" aria-selected="false">
+              Total Statistics
+            </button>
+          </li>
+        </ul>
+        <div class="tab-content" id="statsTabContent">
+          <div class="tab-pane fade show active" id="regular-stats" role="tabpanel" aria-labelledby="regular-tab">
+            <div class="table-responsive">
+              {{ stats_data|safe }}
+            </div>
+          </div>
+          <div class="tab-pane fade" id="total-stats" role="tabpanel" aria-labelledby="total-tab">
+            <div class="table-responsive">
+              {{ total_stats_data|safe }}
+            </div>
+          </div>
+        </div>
+        {% else %}
+        <div class="table-responsive">
+          {{ stats_data|safe }}
+        </div>
+        {% endif %}
+        <div class="form-check form-switch mt-3">
+          <input class="form-check-input" type="checkbox" id="roundingToggle" checked>
+          <label class="form-check-label" for="roundingToggle">Round to nearest hundredth (0.01)</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h5 class="mb-0">Data Sample (First 10 rows)</h5>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          {{ sample_data|safe }}
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="card">
+      <div class="card-body text-center">
+        <h5>Enter date parameters above to view statistics</h5>
+        <p class="text-muted">Statistics will be calculated based on your selection.</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+
+    document.addEventListener('DOMContentLoaded', function() {
+      const singleDateRadio = document.getElementById('single_date');
+      const dateRangeRadio = document.getElementById('date_range');
+      const singleDateField = document.getElementById('single_date_field');
+      const dateRangeFields = document.getElementById('date_range_fields');
+
+      singleDateRadio.addEventListener('change', function() {
+        if (this.checked) {
+          singleDateField.style.display = 'block';
+          dateRangeFields.style.display = 'none';
+        }
+      });
+
+      dateRangeRadio.addEventListener('change', function() {
+        if (this.checked) {
+          singleDateField.style.display = 'none';
+          dateRangeFields.style.display = 'flex';
+        }
+      });
+
+      const link = document.createElement('link');
+      link.href = 'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css';
+      link.rel = 'stylesheet';
+      document.head.appendChild(link);
+
+      document.querySelectorAll('.table-responsive table td').forEach(cell => {
+        const text = cell.textContent.trim();
+        if (text === 'NaN' || text === 'None') {
+          cell.textContent = '0.0';
+        }
+      });
+
+      document.querySelectorAll('.table tbody tr').forEach((row, index) => {
+        row.className = row.className.replace(/table-\w+/g, '');
+
+        if (index % 2 === 0) {
+          row.style.backgroundColor = 'rgba(0, 0, 0, 0.05)';
+        } else {
+          row.style.backgroundColor = 'transparent';
+        }
+
+        row.querySelectorAll('td, th').forEach(cell => {
+          cell.style.backgroundColor = 'inherit';
+          cell.style.color = 'inherit';
+        });
+      });
+
+      const roundingToggle = document.getElementById('roundingToggle');
+      if (roundingToggle) {
+        roundingToggle.addEventListener('change', function() {
+          toggleRounding(this.checked);
+        });
+
+        toggleRounding(roundingToggle.checked);
+      }
+
+      function toggleRounding(shouldRound) {
+        const statsTables = document.querySelectorAll('.table-responsive table');
+        statsTables.forEach(table => {
+          const cells = table.querySelectorAll('td');
+          cells.forEach(cell => {
+            const content = cell.textContent.trim();
+            if (!isNaN(parseFloat(content)) && content !== '') {
+              const number = parseFloat(content);
+              const isInteger = Number.isInteger(number);
+              if (!cell.hasAttribute('data-original')) {
+                cell.setAttribute('data-original', content);
+              }
+
+              if (shouldRound && !isInteger) {
+                cell.textContent = Number(number).toFixed(2);
+              } else {
+                cell.textContent = cell.getAttribute('data-original');
+              }
+            }
+          });
+        });
+      }
+    });
+  </script>
+</body>
+</html>

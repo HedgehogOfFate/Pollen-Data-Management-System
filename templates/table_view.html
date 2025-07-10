@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Viewing {{ friendly_name }}</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    table {
+      font-size: 14px;
+    }
+
+    .pagination-info {
+      margin-bottom: 1rem;
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 1rem;
+    }
+
+    .table th,
+    .table td {
+      padding: 0.75rem;
+      vertical-align: middle;
+      border: 1px solid #dee2e6;
+      white-space: nowrap;
+    }
+
+    .table thead th {
+      background-color: #f8f9fa;
+      border-bottom: 2px solid #dee2e6;
+      vertical-align: bottom;
+      position: relative;
+    }
+
+    .table tbody tr:nth-of-type(odd) {
+      background-color: rgba(0, 0, 0, 0.05);
+    }
+
+    .table-responsive {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .sort-icon {
+      margin-left: 5px;
+    }
+
+    .sortable {
+      cursor: pointer;
+    }
+
+    .sortable:hover {
+      background-color: #e9ecef;
+    }
+
+    .date-search-container {
+      border: 1px solid #dee2e6;
+      border-radius: 0.375rem;
+      padding: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    @media (max-width: 768px) {
+      .table {
+        font-size: 0.875rem;
+      }
+
+      .table th,
+      .table td {
+        padding: 0.5rem;
+      }
+
+      .date-search-container {
+        padding: 0.75rem;
+      }
+    }
+  </style>
+</head>
+<body class="p-4">
+  <div class="container">
+    <h1 class="mb-4">{{ friendly_name }}</h1>
+    <a href="/" class="btn btn-secondary mb-3">← Back</a>
+
+    <a href="/download/{{ table_name }}?{% if search_date %}search_date={{ search_date }}&{% endif %}sort_by={{ sort_by }}&sort_dir={{ sort_dir }}"
+       class="btn btn-primary mb-3 ms-2">
+      Download as Excel{% if search_date %} (Filtered){% endif %}
+    </a>
+
+    <a href="/stats/{{ table_name }}" class="btn btn-primary mb-3 ms-2">Calculate Statistics</a>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ 'danger' if category == 'danger' else 'warning' if category == 'warning' else 'success' }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="date-search-container">
+      <form class="row g-3 align-items-center" method="GET">
+        <div class="col-auto">
+          <label for="search_date" class="form-label">Search by Date:</label>
+        </div>
+        <div class="col-auto">
+          <input type="date"
+                 class="form-control"
+                 id="search_date"
+                 name="search_date"
+                 value="{{ search_date if search_date else '' }}"
+                 title="Select a date to filter data">
+        </div>
+        {% if search_date %}
+        <div class="col-auto">
+          <a href="?page=1&per_page={{ per_page }}&sort_by={{ sort_by }}&sort_dir={{ sort_dir }}"
+             class="btn btn-outline-secondary">Clear Filter</a>
+        </div>
+        {% endif %}
+        <input type="hidden" name="page" value="1">
+        <input type="hidden" name="per_page" value="{{ per_page }}">
+        <input type="hidden" name="sort_by" value="{{ sort_by }}">
+        <input type="hidden" name="sort_dir" value="{{ sort_dir }}">
+      </form>
+    </div>
+
+    {% if search_date and total_rows == 0 %}
+      <div class="alert alert-warning" role="alert">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        No data found for date: <strong>{{ search_date }}</strong>. Try selecting a different date or clear the filter to see all data.
+      </div>
+    {% endif %}
+
+    <div class="pagination-info">
+      Showing page {{ page }} of {{ total_pages }} ({{ total_rows }} total rows)
+      {% if search_date and total_rows > 0 %}
+        <br><small class="text-muted">Filtered by date: {{ search_date }}</small>
+      {% endif %}
+      {% if sort_by and sort_by != 'id' %}
+        <br><small class="text-muted">Sorted by: {{ sort_by }} ({{ sort_dir|upper }})</small>
+      {% endif %}
+    </div>
+
+    <div class="table-responsive">
+
+      <div id="table-container">
+        {{ data|safe }}
+      </div>
+
+      <script>
+        document.addEventListener('DOMContentLoaded', function () {
+        const tableContainer = document.getElementById('table-container');
+        const table = tableContainer.querySelector('table');
+
+        if (table) {
+          const headers = table.querySelectorAll('thead th');
+
+          headers.forEach((header, index) => {
+            const columnName = header.textContent.trim();
+            header.classList.add('sortable');
+
+            const currentSortBy = '{{ sort_by }}';
+            const currentSortDir = '{{ sort_dir }}';
+            if (columnName === currentSortBy) {
+              header.style.backgroundColor = '#e9ecef';
+            }
+
+            header.onclick = function () { sortTable(columnName); };
+          });
+
+          const cells = table.querySelectorAll('td');
+          cells.forEach(cell => {
+            const val = cell.textContent.trim();
+            if (val === 'NaN' || val === 'None') {
+              cell.textContent = '0.00';
+            }
+          });
+        }
+      });
+      </script>
+    </div>
+
+    {% if total_pages > 1 %}
+    <nav aria-label="Page navigation">
+      <ul class="pagination">
+        <li class="page-item {% if page == 1 %}disabled{% endif %}">
+          <a class="page-link" href="?page=1&per_page={{ per_page }}&sort_by={{ sort_by }}&sort_dir={{ sort_dir }}{% if search_date %}&search_date={{ search_date }}{% endif %}" aria-label="First">
+            <span aria-hidden="true">&laquo;&laquo;</span>
+          </a>
+        </li>
+        <li class="page-item {% if page == 1 %}disabled{% endif %}">
+          <a class="page-link" href="?page={{ page - 1 }}&per_page={{ per_page }}&sort_by={{ sort_by }}&sort_dir={{ sort_dir }}{% if search_date %}&search_date={{ search_date }}{% endif %}" aria-label="Previous">
+            <span aria-hidden="true">&laquo;</span>
+          </a>
+        </li>
+
+        {% set start_page = [page - 2, 1]|max %}
+        {% set end_page = [start_page + 4, total_pages]|min %}
+        {% set start_page = [end_page - 4, 1]|max %}
+
+        {% for p in range(start_page, end_page + 1) %}
+        <li class="page-item {% if p == page %}active{% endif %}">
+          <a class="page-link" href="?page={{ p }}&per_page={{ per_page }}&sort_by={{ sort_by }}&sort_dir={{ sort_dir }}{% if search_date %}&search_date={{ search_date }}{% endif %}">{{ p }}</a>
+        </li>
+        {% endfor %}
+
+        <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+          <a class="page-link" href="?page={{ page + 1 }}&per_page={{ per_page }}&sort_by={{ sort_by }}&sort_dir={{ sort_dir }}{% if search_date %}&search_date={{ search_date }}{% endif %}" aria-label="Next">
+            <span aria-hidden="true">&raquo;</span>
+          </a>
+        </li>
+        <li class="page-item {% if page == total_pages %}disabled{% endif %}">
+          <a class="page-link" href="?page={{ total_pages }}&per_page={{ per_page }}&sort_by={{ sort_by }}&sort_dir={{ sort_dir }}{% if search_date %}&search_date={{ search_date }}{% endif %}" aria-label="Last">
+            <span aria-hidden="true">&raquo;&raquo;</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+    {% endif %}
+
+    <div class="mt-3">
+      <form class="row g-3 align-items-center">
+        <div class="col-auto">
+          <label for="per_page" class="col-form-label">Rows per page:</label>
+        </div>
+        <div class="col-auto">
+          <select class="form-select form-select-sm" id="per_page" name="per_page" onchange="this.form.submit()">
+            <option value="10" {% if per_page == 10 %}selected{% endif %}>10</option>
+            <option value="25" {% if per_page == 25 %}selected{% endif %}>25</option>
+            <option value="50" {% if per_page == 50 %}selected{% endif %}>50</option>
+            <option value="100" {% if per_page == 100 %}selected{% endif %}>100</option>
+          </select>
+        </div>
+        <input type="hidden" name="page" value="1">
+        <input type="hidden" name="sort_by" value="{{ sort_by }}">
+        <input type="hidden" name="sort_dir" value="{{ sort_dir }}">
+        {% if search_date %}
+        <input type="hidden" name="search_date" value="{{ search_date }}">
+        {% endif %}
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function sortTable(column) {
+      const urlParams = new URLSearchParams(window.location.search);
+
+      let direction = 'asc';
+      if (urlParams.get('sort_by') === column && urlParams.get('sort_dir') === 'asc') {
+        direction = 'desc';
+      }
+
+      urlParams.set('sort_by', column);
+      urlParams.set('sort_dir', direction);
+      urlParams.set('page', 1); // Reset to first page when sorting
+
+      const searchDate = '{{ search_date if search_date else "" }}';
+      if (searchDate) {
+        urlParams.set('search_date', searchDate);
+      }
+
+      window.location.href = '?' + urlParams.toString();
+    }
+
+    document.getElementById('search_date').addEventListener('change', function() {
+      if (this.value) {
+        this.closest('form').submit();
+      }
+    });
+  </script>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
